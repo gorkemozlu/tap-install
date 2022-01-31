@@ -113,4 +113,6 @@ kubectl create secret docker-registry registry-credentials --docker-server=$CONT
 ytt --ignore-unknown-comments -f values.yaml -f config/dev-ns-prep | kubectl apply -f-
 
 # configure 
-ytt --ignore-unknown-comments -f values.yaml -f demo/ | kubectl apply -f-
+ytt --ignore-unknown-comments -f values.yaml -f demo/tekton-pipeline.yaml | kubectl apply -f-
+ytt --ignore-unknown-comments -f values.yaml -f demo/scan-policy.yaml | kubectl apply -f-
+#ytt --ignore-unknown-comments -f values.yaml -f demo/rbmq-cluster.yaml | kubectl apply -f-
