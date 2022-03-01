@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # $1 - CN
-#
+# $2 - type
 mkdir -p generated/certs
-cat >> generated/certs/$1-req.cnf <<EOF
+cat >> generated/certs/$2-req.cnf <<EOF
 [req]
 distinguished_name = req_distinguished_name
 req_extensions = v3_req

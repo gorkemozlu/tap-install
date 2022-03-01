@@ -13,10 +13,10 @@ MSCA_schema="http" # or https
 
 function show_usage()
 {
-    echo "Scrip for retrive certificate from MS SubCA"
+    echo "Script for retrive certificate from MS SubCA"
     echo "Usage: $0 <CN> [domain\\\\username] [password] [cnf_file]"
     echo " "
-    echo "Example: $0 asd.vmw.local ""vmw\gorkem"" password req.cnf"
+    echo "Example: $0 asd.vmw.local ""gorkem"" password req.cnf"
     exit 0
 }
 
@@ -34,8 +34,8 @@ fi
 
 cd generated/certs
 echo -e "\e[32m1. Generate private key...\e[0m"
-openssl req -new -nodes -out $1.csr -keyout $1.key -config $csrConf
-CERT=`cat $1.csr | tr -d '\n\r'`
+openssl req -new -nodes -out generated/certs/$1.csr -keyout generated/certs/$1.key -config $csrConf
+CERT=`cat generated/certs/$1.csr | tr -d '\n\r'`
 DATA="Mode=newreq&CertRequest=${CERT}&C&TargetStoreFlags=0&SaveCert=yes"
 CERT=`echo ${CERT} | sed 's/+/%2B/g'`
 CERT=`echo ${CERT} | tr -s ' ' '+'`
@@ -64,11 +64,11 @@ curl -k -u "${Username}":${Password} --ntlm $CERTLINK \
 -H "Host: ${MSCA}" \
 -H "Referer: ${MSCA_schema}://${MSCA}/certsrv/certrqxt.asp" \
 -H 'User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; rv:11.0) like Gecko' \
--H 'Content-Type: application/x-www-form-urlencoded' > $1.pem
+-H 'Content-Type: application/x-www-form-urlencoded' > generated/certs/$1.pem
 
 echo -e "\e[32m4. Verifying cert for $1\e[0m"
-md5crt=$(openssl x509 -modulus -noout -in $1.pem | openssl md5|awk '{print $2}')
-md5key=$(openssl rsa -noout -modulus -in $1.key | openssl md5|awk '{print $2}')
+md5crt=$(openssl x509 -modulus -noout -in generated/certs/$1.pem | openssl md5|awk '{print $2}')
+md5key=$(openssl rsa -noout -modulus -in generated/certs/$1.key | openssl md5|awk '{print $2}')
 echo $md5crt
 echo $md5key
 if [ "$md5crt" == "$md5key" ] ;

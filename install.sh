@@ -58,7 +58,7 @@ tanzu secret registry add tap-registry \
   --server ${INSTALL_REGISTRY_HOSTNAME} \
   --export-to-all-namespaces --yes --namespace tap-install
 tanzu package repository add tanzu-tap-repository \
-  --url registry.tanzu.vmware.com/tanzu-application-platform/tap-packages:1.0.0 \
+  --url registry.tanzu.vmware.com/tanzu-application-platform/tap-packages:1.0.1 \
   --namespace tap-install
 tanzu package repository get tanzu-tap-repository --namespace tap-install
 
@@ -72,7 +72,7 @@ ytt -f tap-values.yaml -f values.yaml --ignore-unknown-comments > generated/tap-
 DEVELOPER_NAMESPACE=$(cat values.yaml  | grep developer_namespace | awk '/developer_namespace:/ {print $2}')
 kubectl create ns $DEVELOPER_NAMESPACE
 
-tanzu package install tap -p tap.tanzu.vmware.com -v 1.0.0 --values-file generated/tap-values.yaml -n tap-install
+tanzu package install tap -p tap.tanzu.vmware.com -v 1.0.1 --values-file generated/tap-values.yaml -n tap-install
 
 while kubectl get app tap -n tap-install | grep "Reconcile succeeded" ; [ $? -ne 0 ]; do
 	echo Tanzu Application Platform is not ready yet. Sleeping 60s
@@ -106,7 +106,7 @@ fi
 
 if [ $(yq e .provider-config.dns $VALUES_YAML) = "rfc2136" ] && [ $(yq e .provider-config.k8s $VALUES_YAML) == "tkgs" ];
 then
-
+  kubectl create clusterrolebinding default-tkg-admin-privileged-binding --clusterrole=psp:vmware-system-privileged --group=system:authenticated
   #prep external-dns
   ytt --ignore-unknown-comments -f values.yaml -f config/ad/external-dns/external-dns-ad-values.yaml  > generated/external-dns-ad-values.yaml
   #install external-dns
@@ -116,41 +116,41 @@ then
   #create certs
   #root wildcard
   export ROOT_DOMAIN='*.'$(yq e .ingress.domain $VALUES_YAML)
-  config/ad/cert-ingress/cert/req-cnf.sh $ROOT_DOMAIN
+  config/ad/cert-ingress/cert/req-cnf.sh $ROOT_DOMAIN ROOT_DOMAIN
   #learning-center wildcard
   export LC_DOMAIN='*.learning-center.'$(yq e .ingress.domain $VALUES_YAML)
-  config/ad/cert-ingress/cert/req-cnf.sh $LC_DOMAIN
+  config/ad/cert-ingress/cert/req-cnf.sh $LC_DOMAIN LC_DOMAIN
   #cnr wildcard
-  export CNR_DOMAIN='*.cnr.'$(yq e .ingress.domain $VALUES_YAML)
-  config/ad/cert-ingress/cert/req-cnf.sh $CNR_DOMAIN
+  export CNR_DOMAIN='*.cnrs.'$(yq e .ingress.domain $VALUES_YAML)
+  config/ad/cert-ingress/cert/req-cnf.sh $CNR_DOMAIN CNR_DOMAIN
   cp config/ad/cert-ingress/cert/req-cert.sh generated/certs/req-cert.sh
-  export CERT_ROOT_CNF=generated/certs/$ROOT_DOMAIN-req.cnf
-  export CERT_ROOT_KEY=generated/certs/$ROOT_DOMAIN.key
-  export CERT_ROOT_PEM=generated/certs/$ROOT_DOMAIN.pem
+  export CERT_ROOT_CNF=generated/certs/ROOT_DOMAIN-req.cnf
+  export CERT_ROOT_KEY=generated/certs/ROOT_DOMAIN.key
+  export CERT_ROOT_PEM=generated/certs/ROOT_DOMAIN.pem
 
-  export CERT_LC_CNF=generated/certs/$LC_DOMAIN-req.cnf
-  export CERT_LC_KEY=generated/certs/$LC_DOMAIN.key
-  export CERT_LC_PEM=generated/certs/$LC_DOMAIN.pem
+  export CERT_LC_CNF=generated/certs/LC_DOMAIN-req.cnf
+  export CERT_LC_KEY=generated/certs/LC_DOMAIN.key
+  export CERT_LC_PEM=generated/certs/LC_DOMAIN.pem
 
-  export CERT_CNR_CNF=generated/certs/$CNR_DOMAIN-req.cnf
-  export CERT_CNR_KEY=generated/certs/$CNR_DOMAIN.key
-  export CERT_CNR_PEM=generated/certs/$CNR_DOMAIN.pem
+  export CERT_CNR_CNF=generated/certs/CNR_DOMAIN-req.cnf
+  export CERT_CNR_KEY=generated/certs/CNR_DOMAIN.key
+  export CERT_CNR_PEM=generated/certs/CNR_DOMAIN.pem
   # generate cert for root wildcard
-  generated/certs/req-cert.sh $ROOT_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_ROOT_CNF
+  generated/certs/req-cert.sh ROOT_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_ROOT_CNF
   # generate cert for lc wildcard
-  generated/certs/req-cert.sh $ROOT_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_LC_CNF
+  generated/certs/req-cert.sh LC_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_LC_CNF
   # generate cert for cnr wildcard
-  generated/certs/req-cert.sh $ROOT_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_CNR_CNF
+  generated/certs/req-cert.sh CNR_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_CNR_CNF
   
   #modify and apply certificate as secret
   cp config/ad/cert-ingress/cert/cert-secret.yaml generated/certs/cert-secret.yaml
 
-  CERT_ROOT_KEY_B64=$(cat $CERT_ROOT_KEY|base64)
-  CERT_ROOT_PEM_B64=$(cat $CERT_ROOT_PEM|base64)
-  CERT_LC_KEY_B64=$(cat $CERT_ROOT_KEY|base64)
-  CERT_LC_PEM_B64=$(cat $CERT_ROOT_PEM|base64)
-  CERT_CNR_KEY_B64=$(cat $CERT_ROOT_KEY|base64)
-  CERT_CNR_PEM_B64=$(cat $CERT_ROOT_KEY|base64)
+  CERT_ROOT_KEY_B64=$(cat $CERT_ROOT_KEY|base64 -w 0)
+  CERT_ROOT_PEM_B64=$(cat $CERT_ROOT_PEM|base64 -w 0)
+  CERT_LC_KEY_B64=$(cat $CERT_ROOT_KEY|base64 -w 0)
+  CERT_LC_PEM_B64=$(cat $CERT_ROOT_PEM|base64 -w 0)
+  CERT_CNR_KEY_B64=$(cat $CERT_ROOT_KEY|base64 -w 0)
+  CERT_CNR_PEM_B64=$(cat $CERT_ROOT_KEY|base64 -w 0)
 
   sed -i -e "s~change-me-secret-key1~$CERT_ROOT_KEY_B64~g" generated/certs/cert-secret.yaml
   sed -i -e "s~change-me-secret-crt1~$CERT_ROOT_PEM_B64~g" generated/certs/cert-secret.yaml
@@ -159,7 +159,7 @@ then
   sed -i -e "s~change-me-secret-key3~$CERT_CNR_KEY_B64~g" generated/certs/cert-secret.yaml
   sed -i -e "s~change-me-secret-crt3~$CERT_CNR_PEM_B64~g" generated/certs/cert-secret.yaml
   ytt --ignore-unknown-comments -f values.yaml -f generated/certs/cert-secret.yaml | kubectl apply -f-
-  ytt --ignore-unknown-comments -f values.yaml -f generated/certs/tls-cert-delegation.yaml | kubectl apply -f-
+  ytt --ignore-unknown-comments -f values.yaml -f config/ad/cert-ingress/cert/tls-cert-delegation.yaml | kubectl apply -f-
   ytt --ignore-unknown-comments -f values.yaml -f config/ad/cert-ingress/ingress | kubectl apply -f-
 fi
 
