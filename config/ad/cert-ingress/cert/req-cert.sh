@@ -32,7 +32,6 @@ then
     Password="bar"
 fi
 
-cd generated/certs
 echo -e "\e[32m1. Generate private key...\e[0m"
 openssl req -new -nodes -out generated/certs/$1.csr -keyout generated/certs/$1.key -config $csrConf
 CERT=`cat generated/certs/$1.csr | tr -d '\n\r'`

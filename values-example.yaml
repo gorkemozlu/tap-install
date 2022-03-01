@@ -51,5 +51,5 @@ tap:
       token: changemetoken
   catalog:
     status: enable
-    url:
+    url_1:
       target: https://github.com/gorkemozlu/tap-blank-catalog/blob/main/blank/catalog-info.yaml
