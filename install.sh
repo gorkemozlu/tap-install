@@ -8,7 +8,7 @@ export INSTALL_REGISTRY_PASSWORD=$(cat values.yaml  | grep tanzunet -A 3 | awk '
 export VALUES_YAML=values.yaml
 export PROJECT_ID=$(yq e .gcloud.project_name $VALUES_YAML)
 
-if [ $(yq e .provider-config.dns $VALUES_YAML) = "gcloud-dns" ] && [ $(yq e .provider-config.k8s $VALUES_YAML) != "tkg" ];
+if [ $(yq e .provider-config.dns $VALUES_YAML) = "gcloud-dns" ] && [ $(yq e .provider-config.k8s $VALUES_YAML) == "gke" ];
 then
 
   kubectl create ns tanzu-kapp
@@ -43,12 +43,14 @@ then
       --values-file generated/external-dns-gcloud-values.yaml \
       --poll-timeout 10m0s
 
+  while kubectl get app external-dns -n tanzu-kapp | grep "Reconcile succeeded" ; [ $? -ne 0 ]; do
+  	echo external-dns is not ready yet. Sleeping 60s
+  	sleep 60s
+  done
+
 fi
 
-while kubectl get app external-dns -n tanzu-kapp | grep "Reconcile succeeded" ; [ $? -ne 0 ]; do
-	echo external-dns is not ready yet. Sleeping 60s
-	sleep 60s
-done
+
 
 kubectl create ns tap-install
 tanzu secret registry add tap-registry \
@@ -102,7 +104,64 @@ then
 
 fi
 
+if [ $(yq e .provider-config.dns $VALUES_YAML) = "rfc2136" ] && [ $(yq e .provider-config.k8s $VALUES_YAML) == "tkgs" ];
+then
 
+  #prep external-dns
+  ytt --ignore-unknown-comments -f values.yaml -f config/ad/external-dns/external-dns-ad-values.yaml  > generated/external-dns-ad-values.yaml
+  #install external-dns
+  kubectl apply -f config/ad/external-dns/external-dns-namespace-role.yaml
+  kubectl create secret generic external-dns-data-values --from-file=values.yaml=generated/external-dns-ad-values.yaml -n tanzu-system-service-discovery
+  kubectl apply -f config/ad/external-dns/external-dns-extension.yaml
+  #create certs
+  #root wildcard
+  export ROOT_DOMAIN='*.'$(yq e .ingress.domain $VALUES_YAML)
+  config/ad/cert-ingress/cert/req-cnf.sh $ROOT_DOMAIN
+  #learning-center wildcard
+  export LC_DOMAIN='*.learning-center.'$(yq e .ingress.domain $VALUES_YAML)
+  config/ad/cert-ingress/cert/req-cnf.sh $LC_DOMAIN
+  #cnr wildcard
+  export CNR_DOMAIN='*.cnr.'$(yq e .ingress.domain $VALUES_YAML)
+  config/ad/cert-ingress/cert/req-cnf.sh $CNR_DOMAIN
+  cp config/ad/cert-ingress/cert/req-cert.sh generated/certs/req-cert.sh
+  export CERT_ROOT_CNF=generated/certs/$ROOT_DOMAIN-req.cnf
+  export CERT_ROOT_KEY=generated/certs/$ROOT_DOMAIN.key
+  export CERT_ROOT_PEM=generated/certs/$ROOT_DOMAIN.pem
+
+  export CERT_LC_CNF=generated/certs/$LC_DOMAIN-req.cnf
+  export CERT_LC_KEY=generated/certs/$LC_DOMAIN.key
+  export CERT_LC_PEM=generated/certs/$LC_DOMAIN.pem
+
+  export CERT_CNR_CNF=generated/certs/$CNR_DOMAIN-req.cnf
+  export CERT_CNR_KEY=generated/certs/$CNR_DOMAIN.key
+  export CERT_CNR_PEM=generated/certs/$CNR_DOMAIN.pem
+  # generate cert for root wildcard
+  generated/certs/req-cert.sh $ROOT_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_ROOT_CNF
+  # generate cert for lc wildcard
+  generated/certs/req-cert.sh $ROOT_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_LC_CNF
+  # generate cert for cnr wildcard
+  generated/certs/req-cert.sh $ROOT_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_CNR_CNF
+  
+  #modify and apply certificate as secret
+  cp config/ad/cert-ingress/cert/cert-secret.yaml generated/certs/cert-secret.yaml
+
+  CERT_ROOT_KEY_B64=$(cat $CERT_ROOT_KEY|base64)
+  CERT_ROOT_PEM_B64=$(cat $CERT_ROOT_PEM|base64)
+  CERT_LC_KEY_B64=$(cat $CERT_ROOT_KEY|base64)
+  CERT_LC_PEM_B64=$(cat $CERT_ROOT_PEM|base64)
+  CERT_CNR_KEY_B64=$(cat $CERT_ROOT_KEY|base64)
+  CERT_CNR_PEM_B64=$(cat $CERT_ROOT_KEY|base64)
+
+  sed -i -e "s~change-me-secret-key1~$CERT_ROOT_KEY_B64~g" generated/certs/cert-secret.yaml
+  sed -i -e "s~change-me-secret-crt1~$CERT_ROOT_PEM_B64~g" generated/certs/cert-secret.yaml
+  sed -i -e "s~change-me-secret-key2~$CERT_LC_KEY_B64~g" generated/certs/cert-secret.yaml
+  sed -i -e "s~change-me-secret-crt2~$CERT_LC_PEM_B64~g" generated/certs/cert-secret.yaml
+  sed -i -e "s~change-me-secret-key3~$CERT_CNR_KEY_B64~g" generated/certs/cert-secret.yaml
+  sed -i -e "s~change-me-secret-crt3~$CERT_CNR_PEM_B64~g" generated/certs/cert-secret.yaml
+  ytt --ignore-unknown-comments -f values.yaml -f generated/certs/cert-secret.yaml | kubectl apply -f-
+  ytt --ignore-unknown-comments -f values.yaml -f generated/certs/tls-cert-delegation.yaml | kubectl apply -f-
+  ytt --ignore-unknown-comments -f values.yaml -f config/ad/cert-ingress/ingress | kubectl apply -f-
+fi
 
 # configure developer namespace
 export CONTAINER_REGISTRY_HOSTNAME=$(cat values.yaml | grep container_registry -A 3 | awk '/hostname:/ {print $2}')

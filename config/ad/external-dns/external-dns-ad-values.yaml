@@ -1,0 +1,25 @@
+#@ load("@ytt:data", "data")
+---
+namespace: tanzu-system-service-discovery
+deployment:
+  args:
+    - --source=service
+    - --source=ingress
+    - --source=contour-httpproxy
+    - --provider=rfc2136
+    - --registry=txt
+    - --txt-owner-id=tap
+    - --txt-prefix=xdns-
+    - #@ "--rfc2136-host=" + str(data.values.rfc2136.host)
+    - #@ "--rfc2136-port=" + str(data.values.rfc2136.port)
+    - #@ "--rfc2136-zone=" + str(data.values.rfc2136.zone)
+    - #@ "--domain-filter=" + str(data.values.ingress.domain)
+    - --rfc2136-tsig-axfr
+#@ if data.values.rfc2136.insecure == False:
+    - #@ "--rfc2136-tsig-secret=" + str(data.values.rfc2136.secret)
+    - #@ "--rfc2136-tsig-secret-alg=" + str(data.values.rfc2136.secret_alg)
+    - #@ "--rfc2136-tsig-keyname=" + str(data.values.rfc2136.keyname)
+#@ end
+#@ if data.values.rfc2136.insecure == True:
+    - --rfc2136-insecure
+#@ end
