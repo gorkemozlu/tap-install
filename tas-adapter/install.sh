@@ -1,8 +1,32 @@
 #!/bin/bash
 mkdir -p generated
+export VALUES_YAML=values.yaml
+if [ $(yq e .provider-config.dns $VALUES_YAML) = "rfc2136" ] && [ $(yq e .provider-config.k8s $VALUES_YAML) == "tkgs" ];
+then
+  # certs
+  #tas-adapter wildcard
+  export TAS_ADAPTER_DOMAIN='*.tas-adapter.'$(yq e .ingress.domain $VALUES_YAML)
+  config/ad/cert-ingress/cert/req-cnf.sh $TAS_ADAPTER_DOMAIN TAS_ADAPTER_DOMAIN
+  export CERT_TAS_CNF=generated/certs/TAS_ADAPTER_DOMAIN-req.cnf
+  export CERT_TAS_KEY=generated/certs/TAS_ADAPTER_DOMAIN.key
+  export CERT_TAS_PEM=generated/certs/TAS_ADAPTER_DOMAIN.pem
+  # generate cert for lc wildcard
+  generated/certs/req-cert.sh TAS_ADAPTER_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_TAS_CNF
+  #modify and apply certificate as secret
+  cp additonal-ingress-config/ad/cert-ingress/cert/cert-secret.yaml generated/certs/cert-secret.yaml
+  CERT_ROOT_KEY_B64=$(cat $CERT_TAS_KEY|base64 -w 0)
+  CERT_ROOT_PEM_B64=$(cat $CERT_TAS_PEM|base64 -w 0)
+  sed -i -e "s~change-me-secret-key1~$CERT_ROOT_KEY_B64~g" generated/certs/cert-secret.yaml
+  sed -i -e "s~change-me-secret-crt1~$CERT_ROOT_PEM_B64~g" generated/certs/cert-secret.yaml
+  sleep 3000
+  ytt --ignore-unknown-comments -f values.yaml -f generated/certs/cert-secret.yaml | kubectl apply -f-
+  ytt --ignore-unknown-comments -f values.yaml -f config/ad/cert-ingress/cert/tls-cert-delegation.yaml | kubectl apply -f-
+fi
 
-ytt --ignore-unknown-comments -f values.yaml -f additonal-ingress-config/ | kubectl apply -f-
-
+if [ $(yq e .provider-config.dns $VALUES_YAML) = "gcloud-dns" ] && [ $(yq e .provider-config.k8s $VALUES_YAML) == "tkgm" ];
+then
+ytt --ignore-unknown-comments -f values.yaml -f additonal-ingress-config/cert-manager | kubectl apply -f-
+fi
 sudo wget -O /etc/yum.repos.d/cloudfoundry-cli.repo https://packages.cloudfoundry.org/fedora/cloudfoundry-cli.repo
 sudo yum install cf8-cli
 cf version
@@ -18,46 +42,26 @@ tanzu secret registry add tap-registry \
   --namespace tas-adapter-install
 
 tanzu package repository add tas-adapter-repository \
-  --url registry.tanzu.vmware.com/app-service-adapter/tas-adapter-package-repo:0.2.0 \
+  --url registry.tanzu.vmware.com/app-service-adapter/tas-adapter-package-repo:0.3.0 \
   --namespace tas-adapter-install
 ytt -f tas-adapter-values.yaml -f values.yaml --ignore-unknown-comments > generated/tas-adapter-values.yaml
 tanzu package install tas-adapter \
   --package-name application-service-adapter.tanzu.vmware.com \
-  --version 0.2.0 \
+  --version 0.3.0 \
   --values-file generated/tas-adapter-values.yaml \
   --namespace tas-adapter-install
 
-INGRESS_TLS_SECRET_NAME=$(cat values.yaml | grep ingress -A 3 | awk '/contour_tls_secret:/ {print $2}')
-INGRESS_TLS_SECRET_NAMESPACE=$(cat values.yaml | grep ingress -A 3 | awk '/contour_tls_namespace:/ {print $2}')
-cp overlays/tas-adapter/ingress-overlay.yaml generated/ingress-overlay.yaml
-sed -i"" -e "s/INGRESS_TLS_SECRET_NAMESPACE/$INGRESS_TLS_SECRET_NAMESPACE/" generated/ingress-overlay.yaml
-sed -i"" -e "s/INGRESS_TLS_SECRET_NAME/$INGRESS_TLS_SECRET_NAME/" generated/ingress-overlay.yaml
-kubectl create secret generic ingress-secret-name-overlay --from-file=ingress-secret-name-overlay.yaml=generated/ingress-overlay.yaml -n tas-adapter-install
-kubectl annotate packageinstalls tas-adapter -n tas-adapter-install ext.packaging.carvel.dev/ytt-paths-from-secret-name.0=ingress-secret-name-overlay
+# Due to a bug with the ordering of files in ytt version 0.38.0, the schema override doesn't work and we have to specific the full schema in the schema-overlay.yaml before the override as a workaround!
+kubectl create secret generic ingress-overlay --from-file=ingress-secret-name-overlay.yaml=overlays/tas-adapter/ingress-overlay.yaml --from-file=overlays/tas-adapter/configuration-overlay.yaml --from-file=schema-overlay.yaml=overlays/tas-adapter/schema-overlay.yaml -n tas-adapter-install
+kubectl annotate packageinstalls tas-adapter -n tas-adapter-install ext.packaging.carvel.dev/ytt-paths-from-secret-name.0=ingress-overlay
 
-DEFAULT_APP_MEMORY_ALLOCATION=$(cat values.yaml  | grep default_app_memory_allocation | awk '/default_app_memory_allocation:/ {print $2}')
-cp overlays/tas-adapter/workload-configuration-overlay.yaml generated/workload-configuration-overlay.yaml
-sed -i"" -e "s/INGRESS_TLS_SECRET_NAMESPACE/$INGRESS_TLS_SECRET_NAMESPACE/" generated/workload-configuration-overlay.yaml
-sed -i"" -e "s/INGRESS_TLS_SECRET_NAME/$INGRESS_TLS_SECRET_NAME/" generated/workload-configuration-overlay.yaml
-sed -i"" -e "s/DEFAULT_APP_MEMORY_ALLOCATION/$DEFAULT_APP_MEMORY_ALLOCATION/" generated/workload-configuration-overlay.yaml
-kubectl create secret generic workload-configuration-overlay --from-file=workload-configuration-overlay.yaml=generated/workload-configuration-overlay.yaml -n tas-adapter-install
-kubectl annotate packageinstalls tas-adapter -n tas-adapter-install ext.packaging.carvel.dev/ytt-paths-from-secret-name.1=workload-configuration-overlay
 # Delete cf-k8s-controllers-controller-manager pod so that configuration changes take effect 
-DEFAULT_APP_MEMORY_ALLOCATION=$(cat values.yaml  | grep default_app_memory_allocation | awk '/default_app_memory_allocation:/ {print $2}')
+INGRESS_SECRET=$(cat values.yaml  | grep ingress -A 3 | awk '/contour_tls_secret:/ {print $2}')
 OVERRIDEN_CONFIG=$(kubectl get cm cf-k8s-controllers-config -n cf-k8s-controllers-system -o jsonpath='{.data}')
-until grep -q "$DEFAULT_APP_MEMORY_ALLOCATION" <<< "$OVERRIDEN_CONFIG";
+until grep -q "$INGRESS_SECRET" <<< "$OVERRIDEN_CONFIG";
 do
   echo "Waiting until config override happend ..."
   sleep 1
   OVERRIDEN_CONFIG=$(kubectl get cm cf-k8s-controllers-config -n cf-k8s-controllers-system -o jsonpath='{.data}')
 done
 kubectl delete pods -l control-plane=controller-manager -n cf-k8s-controllers-system
-
-export CONTAINER_REGISTRY_HOSTNAME=$(cat values.yaml | grep container_registry -A 3 | awk '/hostname:/ {print $2}')
-export CONTAINER_REGISTRY_USERNAME=$(cat values.yaml | grep container_registry -A 3 | awk '/username:/ {print $2}')
-export CONTAINER_REGISTRY_PASSWORD=$(cat values.yaml | grep container_registry -A 3 | awk '/password:/ {print $2}')
-kubectl create secret docker-registry image-registry-credentials \
-  -n cf \
-  --docker-server=${CONTAINER_REGISTRY_HOSTNAME} \
-  --docker-username=${CONTAINER_REGISTRY_USERNAME} \
-  --docker-password=${CONTAINER_REGISTRY_PASSWORD}
