@@ -21,7 +21,6 @@ then
   CERT_ROOT_PEM_B64=$(cat $CERT_TAS_PEM|base64 -w 0)
   sed -i -e "s~change-me-secret-key1~$CERT_ROOT_KEY_B64~g" generated/certs/cert-secret.yaml
   sed -i -e "s~change-me-secret-crt1~$CERT_ROOT_PEM_B64~g" generated/certs/cert-secret.yaml
-  sleep 3000
   ytt --ignore-unknown-comments -f values.yaml -f generated/certs/cert-secret.yaml | kubectl apply -f-
   ytt --ignore-unknown-comments -f values.yaml -f config/ad/cert-ingress/cert/tls-cert-delegation.yaml | kubectl apply -f-
 fi
@@ -53,6 +52,12 @@ tanzu package install tas-adapter \
   --version 0.3.0 \
   --values-file generated/tas-adapter-values.yaml \
   --namespace tas-adapter-install
+
+while kubectl get app application-service-adapter -n tas-adapter-install | grep "Reconcile succeeded" ; [ $? -ne 0 ]; do
+	echo Tanzu Application Service Adapter is not ready yet. Sleeping 60s
+	sleep 60s
+done
+
 
 # Due to a bug with the ordering of files in ytt version 0.38.0, the schema override doesn't work and we have to specific the full schema in the schema-overlay.yaml before the override as a workaround!
 kubectl create secret generic ingress-overlay --from-file=ingress-secret-name-overlay.yaml=overlays/tas-adapter/ingress-overlay.yaml --from-file=overlays/tas-adapter/configuration-overlay.yaml --from-file=schema-overlay.yaml=overlays/tas-adapter/schema-overlay.yaml -n tas-adapter-install
