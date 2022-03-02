@@ -166,12 +166,9 @@ then
 fi
 
 # configure developer namespace
-export CONTAINER_REGISTRY_HOSTNAME=$(cat values.yaml | grep container_registry -A 3 | awk '/hostname:/ {print $2}')
-export CONTAINER_REGISTRY_USERNAME=$(cat values.yaml | grep container_registry -A 3 | awk '/username:/ {print $2}')
-export CONTAINER_REGISTRY_PASSWORD=$(cat values.yaml | grep container_registry -A 3 | awk '/password:/ {print $2}')
-#tanzu secret registry add registry-credentials --username ${CONTAINER_REGISTRY_USERNAME} --password ${CONTAINER_REGISTRY_PASSWORD} --server ${CONTAINER_REGISTRY_HOSTNAME} --namespace ${DEVELOPER_NAMESPACE}
-kubectl create secret docker-registry registry-credentials --docker-server=$CONTAINER_REGISTRY_HOSTNAME --docker-username=$CONTAINER_REGISTRY_USERNAME --docker-password=$CONTAINER_REGISTRY_PASSWORD -n $DEVELOPER_NAMESPACE
-ytt --ignore-unknown-comments -f values.yaml -f config/dev-ns-prep | kubectl apply -f-
+
+config/dev-ns-prep/create-dev-ns.sh $DEVELOPER_NAMESPACE
+config/dev-ns-prep/create-dev-ns.sh dev2
 
 # configure 
 ytt --ignore-unknown-comments -f values.yaml -f demo/tekton-pipeline.yaml | kubectl apply -f-
