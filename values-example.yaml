@@ -40,7 +40,7 @@ provider-config:
 tap:
   version: 1
   okta:
-    status: enable
+    status: enable # or disable
     clientId: clientid-value
     clientSecret: clientsecret-value
     audience: https://dev-changeme.okta.com
