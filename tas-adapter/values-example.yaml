@@ -11,3 +11,10 @@ container_registry:
   hostname: harbor.example.com
   username: admin
   password: 
+provider-config:
+  dns: rfc2136     # or aws, rfc2136,gcloud-dns
+  k8s: tkgs            # or gke,tkgs,tkgm
+rfc2136:
+  host: activedirectory.vmw.local
+  domain_user: gorkem #username for a domain user which can issue certs
+  domain_user_pass: samplepassword #password for domain user
