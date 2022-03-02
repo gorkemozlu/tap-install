@@ -6,10 +6,13 @@ then
   # certs
   #tas-adapter wildcard
   export TAS_ADAPTER_DOMAIN='*.tas-adapter.'$(yq e .ingress.domain $VALUES_YAML)
-  config/ad/cert-ingress/cert/req-cnf.sh $TAS_ADAPTER_DOMAIN TAS_ADAPTER_DOMAIN
+  additonal-ingress-config/ad/cert-ingress/cert/req-cnf.sh $TAS_ADAPTER_DOMAIN TAS_ADAPTER_DOMAIN
   export CERT_TAS_CNF=generated/certs/TAS_ADAPTER_DOMAIN-req.cnf
   export CERT_TAS_KEY=generated/certs/TAS_ADAPTER_DOMAIN.key
   export CERT_TAS_PEM=generated/certs/TAS_ADAPTER_DOMAIN.pem
+  cp additonal-ingress-config/ad/cert-ingress/cert/req-cert.sh generated/certs/req-cert.sh
+  export CA_SERVER=$(yq e .rfc2136.host $VALUES_YAML)
+  sed -i -e "s~changeme-ca-server~$CA_SERVER~g" generated/certs/req-cert.sh
   # generate cert for lc wildcard
   generated/certs/req-cert.sh TAS_ADAPTER_DOMAIN $(yq e .rfc2136.domain_user $VALUES_YAML) $(yq e .rfc2136.domain_user_pass $VALUES_YAML) $CERT_TAS_CNF
   #modify and apply certificate as secret
