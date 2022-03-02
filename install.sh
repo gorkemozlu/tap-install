@@ -124,6 +124,8 @@ then
   export CNR_DOMAIN='*.cnrs.'$(yq e .ingress.domain $VALUES_YAML)
   config/ad/cert-ingress/cert/req-cnf.sh $CNR_DOMAIN CNR_DOMAIN
   cp config/ad/cert-ingress/cert/req-cert.sh generated/certs/req-cert.sh
+  export CA_SERVER=$(yq e .rfc2136.host $VALUES_YAML)
+  sed -i -e "s~changeme-ca-server~$CA_SERVER~g" generated/certs/req-cert.sh
   export CERT_ROOT_CNF=generated/certs/ROOT_DOMAIN-req.cnf
   export CERT_ROOT_KEY=generated/certs/ROOT_DOMAIN.key
   export CERT_ROOT_PEM=generated/certs/ROOT_DOMAIN.pem

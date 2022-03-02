@@ -4,7 +4,7 @@
 # $2 - username
 # $3 - password
 
-MSCA='activedirectory.vmw.local'  # Internal Microsoft Certification Authority
+MSCA='changeme-ca-server'  # Internal Microsoft Certification Authority
 Username=$2
 Password=$3
 csrConf=$4

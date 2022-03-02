@@ -80,7 +80,7 @@ accelerator:
     service_type: ClusterIP
 
 cnrs:
-  domain_name: #@ "cnr.{}".format(data.values.ingress.domain)
+  domain_name: #@ "cnrs.{}".format(data.values.ingress.domain)
   domain_template: "{{.Name}}-{{.Namespace}}.{{.Domain}}"
   default_tls_secret: #@ "{}/cnrs-{}".format(data.values.ingress.contour_tls_namespace,data.values.ingress.contour_tls_secret)
 
