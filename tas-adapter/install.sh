@@ -22,7 +22,7 @@ then
   sed -i -e "s~change-me-secret-key1~$CERT_ROOT_KEY_B64~g" generated/certs/cert-secret.yaml
   sed -i -e "s~change-me-secret-crt1~$CERT_ROOT_PEM_B64~g" generated/certs/cert-secret.yaml
   ytt --ignore-unknown-comments -f values.yaml -f generated/certs/cert-secret.yaml | kubectl apply -f-
-  ytt --ignore-unknown-comments -f values.yaml -f config/ad/cert-ingress/cert/tls-cert-delegation.yaml | kubectl apply -f-
+  ytt --ignore-unknown-comments -f values.yaml -f additonal-ingress-config/ad/cert-ingress/cert/tls-cert-delegation.yaml | kubectl apply -f-
 fi
 
 if [ $(yq e .provider-config.dns $VALUES_YAML) = "gcloud-dns" ] && [ $(yq e .provider-config.k8s $VALUES_YAML) == "tkgm" ];
@@ -53,7 +53,7 @@ tanzu package install tas-adapter \
   --values-file generated/tas-adapter-values.yaml \
   --namespace tas-adapter-install
 
-while kubectl get app application-service-adapter -n tas-adapter-install | grep "Reconcile succeeded" ; [ $? -ne 0 ]; do
+while kubectl get app tas-adapter -n tas-adapter-install | grep "Reconcile succeeded" ; [ $? -ne 0 ]; do
 	echo Tanzu Application Service Adapter is not ready yet. Sleeping 60s
 	sleep 60s
 done
