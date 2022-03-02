@@ -149,10 +149,10 @@ then
 
   CERT_ROOT_KEY_B64=$(cat $CERT_ROOT_KEY|base64 -w 0)
   CERT_ROOT_PEM_B64=$(cat $CERT_ROOT_PEM|base64 -w 0)
-  CERT_LC_KEY_B64=$(cat $CERT_ROOT_KEY|base64 -w 0)
-  CERT_LC_PEM_B64=$(cat $CERT_ROOT_PEM|base64 -w 0)
-  CERT_CNR_KEY_B64=$(cat $CERT_ROOT_KEY|base64 -w 0)
-  CERT_CNR_PEM_B64=$(cat $CERT_ROOT_KEY|base64 -w 0)
+  CERT_LC_KEY_B64=$(cat $CERT_LC_KEY|base64 -w 0)
+  CERT_LC_PEM_B64=$(cat $CERT_LC_PEM|base64 -w 0)
+  CERT_CNR_KEY_B64=$(cat $CERT_CNR_KEY|base64 -w 0)
+  CERT_CNR_PEM_B64=$(cat $CERT_CNR_PEM|base64 -w 0)
 
   sed -i -e "s~change-me-secret-key1~$CERT_ROOT_KEY_B64~g" generated/certs/cert-secret.yaml
   sed -i -e "s~change-me-secret-crt1~$CERT_ROOT_PEM_B64~g" generated/certs/cert-secret.yaml
