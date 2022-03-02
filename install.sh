@@ -106,13 +106,13 @@ fi
 
 if [ $(yq e .provider-config.dns $VALUES_YAML) = "rfc2136" ] && [ $(yq e .provider-config.k8s $VALUES_YAML) == "tkgs" ];
 then
-  kubectl create clusterrolebinding default-tkg-admin-privileged-binding --clusterrole=psp:vmware-system-privileged --group=system:authenticated
-  #prep external-dns
-  ytt --ignore-unknown-comments -f values.yaml -f config/ad/external-dns/external-dns-ad-values.yaml  > generated/external-dns-ad-values.yaml
-  #install external-dns
-  kubectl apply -f config/ad/external-dns/external-dns-namespace-role.yaml
-  kubectl create secret generic external-dns-data-values --from-file=values.yaml=generated/external-dns-ad-values.yaml -n tanzu-system-service-discovery
-  kubectl apply -f config/ad/external-dns/external-dns-extension.yaml
+  #kubectl create clusterrolebinding default-tkg-admin-privileged-binding --clusterrole=psp:vmware-system-privileged --group=system:authenticated
+  ##prep external-dns
+  #ytt --ignore-unknown-comments -f values.yaml -f config/ad/external-dns/external-dns-ad-values.yaml  > generated/external-dns-ad-values.yaml
+  ##install external-dns
+  #kubectl apply -f config/ad/external-dns/external-dns-namespace-role.yaml
+  #kubectl create secret generic external-dns-data-values --from-file=values.yaml=generated/external-dns-ad-values.yaml -n tanzu-system-service-discovery
+  #kubectl apply -f config/ad/external-dns/external-dns-extension.yaml
   #create certs
   #root wildcard
   export ROOT_DOMAIN='*.'$(yq e .ingress.domain $VALUES_YAML)
@@ -167,10 +167,12 @@ fi
 
 # configure developer namespace
 
-config/dev-ns-prep/create-dev-ns.sh $DEVELOPER_NAMESPACE
 config/dev-ns-prep/create-dev-ns.sh dev2
+config/dev-ns-prep/create-dev-ns.sh dev3
 
 # configure 
-ytt --ignore-unknown-comments -f values.yaml -f demo/tekton-pipeline.yaml | kubectl apply -f-
-ytt --ignore-unknown-comments -f values.yaml -f demo/scan-policy.yaml | kubectl apply -f-
+ytt --ignore-unknown-comments --data-value developer_namespace=dev2 -f demo/tekton-pipeline.yaml | kubectl apply -f-
+ytt --ignore-unknown-comments --data-value developer_namespace=dev3 -f demo/tekton-pipeline.yaml | kubectl apply -f-
+ytt --ignore-unknown-comments --data-value developer_namespace=dev2 -f demo/scan-policy.yaml | kubectl apply -f-
+ytt --ignore-unknown-comments --data-value developer_namespace=dev3 -f demo/scan-policy.yaml | kubectl apply -f-
 #ytt --ignore-unknown-comments -f values.yaml -f demo/rbmq-cluster.yaml | kubectl apply -f-
