@@ -26,14 +26,14 @@ gcloud:
 
 rfc2136:
   host: activedirectory.vmw.local
-  port: 53
-  zone: example.com #must be root domain
-  insecure: true # true,false
-  secret: Zey0ypFf09Ov3kGHP+UjP2ueVo5JPlZ/gX3GRvFfokI= # no need to set this, if it's insecure #sudo docker run cmd.cat/tsig-keygen tsig-keygen
-  secret_alg: hmac-sha256 # no need to set this, if it's insecure
-  keyname: tsig-key # no need to set this, if it's insecure
   domain_user: gorkem #username for a domain user which can issue certs
   domain_user_pass: samplepassword #password for domain user
+  port: 53 # for external-dns setup.
+  zone: example.com # for external-dns setup. must be root domain.
+  insecure: true # for external-dns setup. true,false.
+  secret: Zey0ypFf09Ov3kGHP+UjP2ueVo5JPlZ/gX3GRvFfokI= # for external-dns setup. no need to set this, if it's insecure #sudo docker run cmd.cat/tsig-keygen tsig-keygen
+  secret_alg: hmac-sha256 # for external-dns setup. no need to set this, if it's insecure
+  keyname: tsig-key # for external-dns setup. no need to set this, if it's insecure
 provider-config:
   dns: rfc2136     # or gcloud-dns,aws,rfc2136
   k8s: tkgs            # or gke,tkgs,tkgm
